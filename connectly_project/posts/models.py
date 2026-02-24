@@ -11,9 +11,18 @@ class User(models.Model):
 
 
 class Post(models.Model):
+    POST_TYPES = [
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('video', 'Video'),
+    ]
+    
+    title = models.CharField(max_length=200)  # Title of the post
     content = models.TextField()  # The text content of the post
     author = models.ForeignKey(User, related_name='posts', on_delete=models.CASCADE)  # The user who created the post
     created_at = models.DateTimeField(auto_now_add=True)  # Timestamp when the post was created
+    post_type = models.CharField(max_length=10, choices=POST_TYPES, default='text')  # Type of post
+    metadata = models.JSONField(default=dict, blank=True)  # Metadata for the post (e.g., file_size for images, duration for videos)
 
 
     def __str__(self):
