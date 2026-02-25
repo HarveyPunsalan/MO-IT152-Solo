@@ -105,6 +105,7 @@ class CreatePostView(APIView):
             post = PostFactory.create_post(
                 post_type=data['post_type'],
                 title=data['title'],
+                author_id=data['author'],
                 content=data.get('content', ''),
                 metadata=data.get('metadata', {})
             )
