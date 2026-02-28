@@ -2,8 +2,6 @@
 
 **Student:** Harvey Punsalan
 **Course:** MO-IT152 — Integrative Programming and Technologies
-**School:** Mapua-Malayan Digital College
-**Submission Type:** Solo
 
 ---
 
