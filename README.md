@@ -132,7 +132,7 @@ This repository contains only my own code and work. No proprietary course materi
 
 In the interest of transparency and in compliance with course documentation requirements, I am disclosing my use of AI and other tools during this project.
 
-**Tools used:** Claude (by Anthropic), Grammarly
+**Tools used:** Claude, Grammarly
 
 ---
 
