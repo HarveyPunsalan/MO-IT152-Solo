@@ -1,10 +1,5 @@
 # Connectly API: MO-IT152 Integrative Programming and Technologies
 
-**Student:** Harvey Punsalan
-**Course:** MO-IT152 — Integrative Programming and Technologies
-
----
-
 ## About This Project
 
 This is the Connectly API project built over the course of MO-IT152. It is a Django REST Framework based API that was developed incrementally across multiple milestones starting from basic CRUD operations, then adding data validation and relational models, then securing the API with HTTPS and token authentication, and finally implementing design patterns (Singleton and Factory) to improve the overall structure and maintainability of the codebase.
