@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Post, Comment
+from .models import User, Post, Comment, Like
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,3 +27,16 @@ class CommentSerializer(serializers.ModelSerializer):
         if not User.objects.filter(id=value.id).exists():
             raise serializers.ValidationError("Author not found.")
         return value
+    
+class LikeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Like
+        fields = ['id', 'user', 'post', 'created_at']
+        read_only_fields = ['created_at']
+
+    def validate(self, data):
+        if Like.objects.filter(user=data['user'], post=data['post']).exists():
+            raise serializers.ValidationError(
+                "You have already liked this post."
+            )
+        return data
