@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from .models import Post, Comment, Like
-from .serializers import UserSerializer, PostSerializer, CommentSerializer
+from .models import Post, Comment
+from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer
 from .permissions import IsPostAuthor, IsCommentAuthor
 from singletons.logger_singleton import LoggerSingleton
 from factories.post_factory import PostFactory
@@ -162,7 +162,7 @@ class CommentPostView(APIView):
         # Author is automatically the logged in user
         data = {
             "text": request.data.get("text", ""),
-            "author": request.user.id,
+            "author": request.data.get("author"),
             "post": post.id
         }
         serializer = CommentSerializer(data=data)
@@ -179,8 +179,7 @@ class GetPostCommentsView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, post_id):
-        # Check if post exists
+    def get(self, request, post_id):  # ← get not post
         try:
             post = Post.objects.get(id=post_id)
         except Post.DoesNotExist:

@@ -33,6 +33,7 @@ class LikeSerializer(serializers.ModelSerializer):
         model = Like
         fields = ['id', 'user', 'post', 'created_at']
         read_only_fields = ['created_at']
+        validators = []    # I add this to disables Django's default unique constraint message
 
     def validate(self, data):
         if Like.objects.filter(user=data['user'], post=data['post']).exists():
