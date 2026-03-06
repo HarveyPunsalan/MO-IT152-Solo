@@ -17,7 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from posts.google_auth_views import GoogleLoginView
+from posts.google_views import GoogleLoginView
 
 
 urlpatterns = [
