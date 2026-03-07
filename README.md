@@ -5,7 +5,7 @@
 
 ## About This Project
 
-This is my Connectly API project for MO-IT152. I built this incrementally across two milestones — MS1 covered the core stuff like CRUD, authentication, design patterns, and HTTPS. MS2 is where I added user interactions (likes and comments), Google OAuth login, and a news feed endpoint.
+This is my Connectly API project for MO-IT152. I built this incrementally across two milestones. MS1 covered the core stuff like CRUD, authentication, design patterns, and HTTPS. MS2 is where I added user interactions (likes and comments), Google OAuth login, and a news feed endpoint.
 
 This is a solo submission. All code was written by me.
 
@@ -129,11 +129,11 @@ MO-IT152-SOLO/
 
 ### Milestone 2
 
-#### HW5 — Likes and Comments on Specific Posts
+#### HW5: Likes and Comments on Specific Posts
 
 Before this, the API had a general comments endpoint but nothing post-specific, and no likes at all. HW5 added those missing pieces.
 
-I added a `Like` model in `models.py` with foreign keys to both `User` and `Post`. The important part is the `unique_together` constraint — without it, users could like the same post multiple times, so that constraint makes the database reject duplicates. On top of that, I added validation in `LikeSerializer` to catch it early and return a readable error instead of a raw database crash.
+I added a `Like` model in `models.py` with foreign keys to both `User` and `Post`. The important part is the `unique_together` constraint, without it, users could like the same post multiple times, so that constraint makes the database reject duplicates. On top of that, I added validation in `LikeSerializer` to catch it early and return a readable error instead of a raw database crash.
 
 For the views, I wrote three new classes:
 - `LikePostView` for `POST /posts/posts/<id>/like/` — checks if the post exists, checks for duplicate likes, then saves
@@ -142,17 +142,17 @@ For the views, I wrote three new classes:
 
 All three are protected with `TokenAuthentication` and log events using the Singleton Logger. I also updated both diagrams (Data Relationship and CRUD Interaction Flow) to reflect these changes before writing any code.
 
-#### HW6 — Google OAuth Login
+#### HW6: Integrating Third-Party Services
 
-This was about giving users a second way to log in — instead of only username and password, they can now use their Google account. The existing login still works exactly the same; Google OAuth is just an extra option.
+This was about giving users a second way to log in instead of only username and password, they can now use their Google account. The existing login still works exactly the same; Google OAuth is just an extra option.
 
 I installed `django-allauth` and created a new file `posts/google_auth_views.py` with the `GoogleLoginView`. When a client sends a POST to `/auth/google/login/` with a Google `id_token`, the view sends that token to Google's servers to verify it. If it's valid, Google tells us who the user is. From there, the view either finds the existing account or creates a new one, then returns the app's own DRF token so the user can make authenticated requests normally.
 
 I updated `settings.py` with the allauth config, added the new URLs in `connectly_project/urls.py`, ran migrations for allauth's social account tables, and updated the Auth Flow diagram to show the new Google login path running parallel to the original one.
 
-#### HW7 — News Feed
+#### HW7: Building a News Feed
 
-This added a `GET /feed` endpoint that returns posts sorted newest-first with pagination — so instead of dumping every post at once, the client gets them in pages of 10.
+This added a `GET /feed` endpoint that returns posts sorted newest first with pagination so instead of dumping every post at once, the client gets them in pages of 20.
 
 I created a `FeedPagination` class that extends DRF's `PageNumberPagination` and a `FeedView` class in `views.py` that queries all posts ordered by `created_at` descending, runs them through the paginator, serializes, logs, and returns the response. The response follows the standard DRF paginated format with `count`, `next`, `previous`, and `results`. I registered it as `path('feed/', FeedView.as_view())` in `posts/urls.py`, making the full URL `/posts/feed/` since the posts app is mounted at `/posts/` in the main urls.py. I also updated the CRUD Interaction Flow diagram to include the feed path.
 
@@ -186,16 +186,16 @@ In the interest of transparency and in compliance with course documentation requ
 
 **Claude**
 
-- I used Claude to help me **understand the system diagrams** provided in the course materials. The diagrams were sometimes detailed and I wanted to make sure I had a clear picture of the architecture before I started coding, so I described the diagrams to Claude and asked for explanations to guide my understanding.
-- I asked Claude to help me **identify what parts of the API I needed to test in Postman**. Since I was not fully familiar with API testing workflows at the start of the project, Claude helped me understand what endpoints to hit, what request bodies to use, and what responses to expect based on the diagrams.
-- In Milestone 2, I also used Claude to help me understand some of the new concepts before coding — things like how the Google OAuth token verification flow actually works, and how Django REST Framework's pagination classes are structured.
+- I want to be upfront about how I used Claude in this project. I mostly used it as a reference the same way you'd Google something or read documentation when you're stuck or want to double-check your understanding before moving forward.
 
-**What I did NOT use Claude for:**
+The main things I asked Claude about were the system diagrams. Some of them were dense and I wanted to make sure I was reading them correctly before I started implementing anything. I'd describe what I was looking at and ask Claude to help me make sense of it. Same thing with the diagram updates in MS2. I used it as a sounding board to check if the changes I was planning actually made sense architecturally.
 
-I did not use Claude to write or generate any of the code in this repository. All code in VS Code — the models, views, serializers, permissions, factory, singletons, and everything added in MS2 — was written by me. The task instructions were detailed enough that I could follow them and implement everything on my own.
+I also asked for some guidance on Postman testing, mostly for HW6. Google OAuth testing is genuinely confusing the first time because you're dealing with tokens from an external provider, and I wasn't sure I was testing it the right way. Claude helped me figure out what requests to send and what responses to expect.
+
+All the actual implementation the models, views, serializers, URLs, the Like constraint, the OAuth view, the feed pagination. I wrote all of that myself in VS Code. Claude never touched the code. I used it to understand things, not to build things.
 
 ---
 
-**Grammarly**
+**QuillBot**
 
-I used Grammarly solely for grammar and spelling checks on my written worksheet responses. English is not my strongest area and I wanted to make sure my written answers were readable and clear. Grammarly was only used to correct grammar — all the content, ideas, and answers in the worksheets are entirely my own.
+I used QuillBot  solely for grammar and spelling checks on my written worksheet responses. English is not my strongest area and I wanted to make sure my written answers were readable and clear. QuillBot was only used to correct grammar all the content, ideas, and answers in the worksheets are entirely my own.
