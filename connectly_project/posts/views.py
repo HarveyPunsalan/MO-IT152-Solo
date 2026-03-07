@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from django.contrib.auth.models import User
@@ -179,7 +180,7 @@ class GetPostCommentsView(APIView):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, post_id):  # ← get not post
+    def get(self, request, post_id):  
         try:
             post = Post.objects.get(id=post_id)
         except Post.DoesNotExist:
@@ -194,4 +195,27 @@ class GetPostCommentsView(APIView):
         serializer = CommentSerializer(comments, many=True)
         logger.info(f"Comments retrieved for post {post_id}")
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class FeedPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class FeedView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        posts = Post.objects.all().order_by('-created_at')
+
+        paginator = FeedPagination()
+        paginated_posts = paginator.paginate_queryset(posts, request)
+
+        serializer = PostSerializer(paginated_posts, many=True)
+
+        logger.info(f"Feed accessed by user {request.user.username}")
+
+        return paginator.get_paginated_response(serializer.data)
 

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import UserListCreate, PostListCreate, PostDetailView, CommentListCreate, CreatePostView, LikePostView, CommentPostView, GetPostCommentsView
+from .views import UserListCreate, PostListCreate, PostDetailView, CommentListCreate, CreatePostView, LikePostView, CommentPostView, GetPostCommentsView, FeedView
 
 
 urlpatterns = [
@@ -13,5 +13,6 @@ urlpatterns = [
     # I push this under because django reads url top to bottom
     path('posts/<int:pk>/', PostDetailView.as_view(), name='post-detail'),
     path('comments/', CommentListCreate.as_view(), name='comment-list-create'),
+    path('feed/', FeedView.as_view(), name='news-feed'),
 ]
 
