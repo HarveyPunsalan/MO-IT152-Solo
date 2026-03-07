@@ -10,6 +10,7 @@ from .models import Post, Comment
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer
 from .permissions import IsPostAuthor, IsCommentAuthor
 from singletons.logger_singleton import LoggerSingleton
+from singletons.config_manager import ConfigManager
 from factories.post_factory import PostFactory
 
 
@@ -198,9 +199,11 @@ class GetPostCommentsView(APIView):
 
 
 class FeedPagination(PageNumberPagination):
-    page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
+
+    def get_page_size(self, request):
+        return ConfigManager().get_setting("DEFAULT_PAGE_SIZE")
 
 
 class FeedView(APIView):
