@@ -12,7 +12,7 @@ All code in this repository was written by me individually as a solo submission.
 
 The **latest and final version** of this project is on the `master` branch.
 
-> All submissions, including the Milestone 1 deliverable, reflect the code currently on `master`.
+> "All submissions, including the Milestone 1 deliverable, reflect the code currently on `master`".
 
 ---
 
