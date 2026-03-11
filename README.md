@@ -146,7 +146,7 @@ All three are protected with `TokenAuthentication` and log events using the Sing
 
 This was about giving users a second way to log in instead of only username and password, they can now use their Google account. The existing login still works exactly the same; Google OAuth is just an extra option.
 
-I installed `django-allauth` and created a new file `posts/google_auth_views.py` with the `GoogleLoginView`. When a client sends a POST to `/auth/google/login/` with a Google `id_token`, the view sends that token to Google's servers to verify it. If it's valid, Google tells us who the user is. From there, the view either finds the existing account or creates a new one, then returns the app's own DRF token so the user can make authenticated requests normally.
+I installed `django-allauth` and created a new file `posts/google_views.py` with the `GoogleLoginView`. When a client sends a POST to `/auth/google/login/` with a Google `id_token`, the view sends that token to Google's servers to verify it. If it's valid, Google tells us who the user is. From there, the view either finds the existing account or creates a new one, then returns the app's own DRF token so the user can make authenticated requests normally.
 
 I updated `settings.py` with the allauth config, added the new URLs in `connectly_project/urls.py`, ran migrations for allauth's social account tables, and updated the Auth Flow diagram to show the new Google login path running parallel to the original one.
 
