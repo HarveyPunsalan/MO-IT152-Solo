@@ -8,16 +8,18 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from .models import Post, Comment
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer
-from .permissions import IsPostAuthor, IsCommentAuthor
+from .permissions import IsPostAuthor, IsCommentAuthor, IsAdminUser, IsOwnerOrAdmin
 from singletons.logger_singleton import LoggerSingleton
 from singletons.config_manager import ConfigManager
 from factories.post_factory import PostFactory
+from django.db.models import Q
 
 
 logger = LoggerSingleton().get_logger()
 
 
 class UserListCreate(APIView):
+    # Handles listing all users (GET) and creating a new user (POST).
     def get(self, request):
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
@@ -36,7 +38,7 @@ class UserListCreate(APIView):
             email=email
         )
         
-        # Create authentication token for the user
+        # To generate a token for the new user on registration
         from rest_framework.authtoken.models import Token
         token, created = Token.objects.get_or_create(user=user)
         
@@ -50,11 +52,18 @@ class UserListCreate(APIView):
 
 
 class PostListCreate(APIView):
+    # Handles listing all posts (GET) and creating a new post (POST). Requires authentication.
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        posts = Post.objects.all()
+        # Admins see all posts, regular users only see public posts + their own private posts
+        if hasattr(request.user, 'role') and request.user.role == 'admin':
+            posts = Post.objects.all()
+        else:
+            posts = Post.objects.filter(
+                Q(privacy='public') | Q(author=request.user)
+            )
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
 
@@ -70,17 +79,47 @@ class PostListCreate(APIView):
 
 
 class PostDetailView(APIView):
+    # Returns a single post by ID. Checks privacy, ownership, and role.
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated, IsPostAuthor]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        post = Post.objects.get(pk=pk)
-        self.check_object_permissions(request, post)
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'error': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # ── HW8: Privacy check ─-
+        if (
+            post.privacy == 'private' and
+            post.author != request.user and
+            not (hasattr(request.user, 'role') and request.user.role == 'admin')
+        ):
+            logger.warning(f"User {request.user.username} tried to view private post {pk}")
+            return Response({'error': 'This post is private.'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = PostSerializer(post)
         return Response(serializer.data)
 
+    def delete(self, request, pk):
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'error': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # ── Ownership check ─-
+        permission = IsOwnerOrAdmin()
+        if not permission.has_object_permission(request, self, post):
+            logger.warning(f"User {request.user.username} tried to delete post {pk} — DENIED")
+            return Response({'error': 'You do not have permission to delete this post.'}, status=status.HTTP_403_FORBIDDEN)
+
+        post.delete()
+        logger.info(f"User {request.user.username} deleted post {pk}")
+        return Response({'message': 'Post deleted successfully.'}, status=status.HTTP_200_OK)
+
 
 class CommentListCreate(APIView):
+    # Handles listing all comments (GET) and creating a new comment (POST). Requires authentication.
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
     
@@ -101,6 +140,7 @@ class CommentListCreate(APIView):
 
 
 class CreatePostView(APIView):
+    # Creates a post using the PostFactory pattern. Validates post type and metadata.
     def post(self, request):
         data = request.data
         try:
@@ -117,6 +157,10 @@ class CreatePostView(APIView):
         
 
 class LikePostView(APIView):
+    """
+    Handles liking a specific post (POST /posts/{id}/like/).
+    Returns 404 if post doesn't exist, 400 if already liked, 201 on success.
+    """
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -131,7 +175,7 @@ class LikePostView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Build data and validate
+        # Build data and validate 
         data = {
             "user": request.user.id,
             "post": post.id
@@ -147,6 +191,10 @@ class LikePostView(APIView):
     
 
 class CommentPostView(APIView):
+    """
+    Handles commenting on a specific post (POST /posts/{id}/comment/).
+    Returns 404 if post doesn't exist, 400 if text is empty, 201 on success.
+    """
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -178,6 +226,10 @@ class CommentPostView(APIView):
     
 
 class GetPostCommentsView(APIView):
+    """
+    Retrieves all comments for a specific post (GET /posts/{id}/comments/).
+    Returns 404 if post doesn't exist, 200 with empty list if no comments yet.
+    """
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -199,10 +251,13 @@ class GetPostCommentsView(APIView):
 
 
 class FeedPagination(PageNumberPagination):
+    # Let clients control page size via ?page_size=N, but cap it at 100
     page_size_query_param = 'page_size'
     max_page_size = 100
 
     def get_page_size(self, request):
+        # Pull page size from ConfigManager instead of hardcoding it
+        # so i only need to change it in one place if needed
         return ConfigManager().get_setting("DEFAULT_PAGE_SIZE")
 
 
@@ -211,14 +266,40 @@ class FeedView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        posts = Post.objects.all().order_by('-created_at')
+        # Admins see all posts, regular users only see public posts + their own private posts
+        if hasattr(request.user, 'role') and request.user.role == 'admin':
+            posts = Post.objects.all().order_by('-created_at')
+        else:
+            posts = Post.objects.filter(
+                Q(privacy='public') | Q(author=request.user)
+            ).order_by('-created_at')
 
+        # Slice the queryset into pages
         paginator = FeedPagination()
         paginated_posts = paginator.paginate_queryset(posts, request)
 
+        # To serialize the current page
         serializer = PostSerializer(paginated_posts, many=True)
 
         logger.info(f"Feed accessed by user {request.user.username}")
 
+        # To return count, next, previous, and results automatically
         return paginator.get_paginated_response(serializer.data)
+    
+
+class AdminPostListView(APIView):
+    """
+    Admin-only endpoint: GET /posts/admin/
+    Returns ALL posts including private ones.
+    Only users with role='admin' can access this.
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        # Admin can see everything — no privacy filter
+        posts = Post.objects.all().order_by('-created_at')
+        serializer = PostSerializer(posts, many=True)
+        logger.info(f"Admin {request.user.username} retrieved all posts")
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
