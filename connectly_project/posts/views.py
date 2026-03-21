@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from .models import Post, Comment
+from .models import Post, Comment, User as CustomUser
 from .serializers import UserSerializer, PostSerializer, CommentSerializer, LikeSerializer
 from .permissions import IsPostAuthor, IsCommentAuthor, IsAdminUser, IsOwnerOrAdmin
 from singletons.logger_singleton import LoggerSingleton
@@ -89,11 +89,18 @@ class PostDetailView(APIView):
         except Post.DoesNotExist:
             return Response({'error': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # ── HW8: Privacy check ─-
+        # -- Check if requester is admin --
+        try:
+            custom_user = CustomUser.objects.get(username=request.user.username)
+            is_admin = custom_user.role == 'admin'
+        except CustomUser.DoesNotExist:
+            is_admin = False
+
+        # -- Privacy check --
         if (
             post.privacy == 'private' and
-            post.author != request.user and
-            not (hasattr(request.user, 'role') and request.user.role == 'admin')
+            post.author.username != request.user.username and
+            not is_admin
         ):
             logger.warning(f"User {request.user.username} tried to view private post {pk}")
             return Response({'error': 'This post is private.'}, status=status.HTTP_403_FORBIDDEN)
@@ -107,7 +114,7 @@ class PostDetailView(APIView):
         except Post.DoesNotExist:
             return Response({'error': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # ── Ownership check ─-
+        # -- Ownership check --
         permission = IsOwnerOrAdmin()
         if not permission.has_object_permission(request, self, post):
             logger.warning(f"User {request.user.username} tried to delete post {pk} — DENIED")

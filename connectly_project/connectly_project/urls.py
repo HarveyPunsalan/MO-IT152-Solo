@@ -18,6 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from posts.google_views import GoogleLoginView
+from rest_framework.authtoken.views import obtain_auth_token
 
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
 
     path('accounts/', include('allauth.urls')),
     path('auth/google/login/', GoogleLoginView.as_view(), name='google-login'),
+    path('api/token/', obtain_auth_token, name='api-token'),
 ]
