@@ -57,16 +57,23 @@ class PostListCreate(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
+        # -- Check if requester is admin --
+        try:
+            custom_user = CustomUser.objects.get(username=request.user.username)
+            is_admin = custom_user.role == 'admin'
+        except CustomUser.DoesNotExist:
+            custom_user = None
+            is_admin = False
+
         # Admins see all posts, regular users only see public posts + their own private posts
-        if hasattr(request.user, 'role') and request.user.role == 'admin':
+        if is_admin:
             posts = Post.objects.all()
         else:
             posts = Post.objects.filter(
-                Q(privacy='public') | Q(author=request.user)
+                Q(privacy='public') | Q(author=custom_user)
             )
         serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
-
 
     def post(self, request):
         serializer = PostSerializer(data=request.data)
@@ -123,6 +130,25 @@ class PostDetailView(APIView):
         post.delete()
         logger.info(f"User {request.user.username} deleted post {pk}")
         return Response({'message': 'Post deleted successfully.'}, status=status.HTTP_200_OK)
+    
+    def put(self, request, pk):
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'error': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # -- Ownership check --
+        permission = IsOwnerOrAdmin()
+        if not permission.has_object_permission(request, self, post):
+            logger.warning(f"User {request.user.username} tried to edit post {pk} — DENIED")
+            return Response({'error': 'You do not have permission to edit this post.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = PostSerializer(post, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            logger.info(f"User {request.user.username} updated post {pk}")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CommentListCreate(APIView):
@@ -273,12 +299,20 @@ class FeedView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # -- Check if requester is admin --
+        try:
+            custom_user = CustomUser.objects.get(username=request.user.username)
+            is_admin = custom_user.role == 'admin'
+        except CustomUser.DoesNotExist:
+            custom_user = None
+            is_admin = False
+
         # Admins see all posts, regular users only see public posts + their own private posts
-        if hasattr(request.user, 'role') and request.user.role == 'admin':
+        if is_admin:
             posts = Post.objects.all().order_by('-created_at')
         else:
             posts = Post.objects.filter(
-                Q(privacy='public') | Q(author=request.user)
+                Q(privacy='public') | Q(author=custom_user)
             ).order_by('-created_at')
 
         # Slice the queryset into pages

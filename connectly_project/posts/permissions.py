@@ -19,27 +19,28 @@ class IsCommentAuthor(BasePermission):
         return obj.author == request.user
 
 class IsAdminUser(BasePermission):
-    """
-    Only allows access to users with role='admin'.
-    """
     message = 'You must be an admin to perform this action.'
 
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            hasattr(request.user, 'role') and
-            request.user.role == 'admin'
-        )
+        if not request.user or not request.user.is_authenticated:
+            return False
+        from posts.models import User as CustomUser
+        try:
+            custom_user = CustomUser.objects.get(username=request.user.username)
+            return custom_user.role == 'admin'
+        except CustomUser.DoesNotExist:
+            return False
 
 
 class IsOwnerOrAdmin(BasePermission):
-    """
-    Only allows access if the user owns the object OR is an admin.
-    """
     message = 'You do not have permission to modify this resource.'
 
     def has_object_permission(self, request, view, obj):
-        if hasattr(request.user, 'role') and request.user.role == 'admin':
-            return True
-        return obj.author == request.user
+        from posts.models import User as CustomUser
+        try:
+            custom_user = CustomUser.objects.get(username=request.user.username)
+            if custom_user.role == 'admin':
+                return True
+        except CustomUser.DoesNotExist:
+            pass
+        return obj.author.username == request.user.username
