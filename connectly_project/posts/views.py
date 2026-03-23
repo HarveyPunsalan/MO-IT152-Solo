@@ -13,6 +13,7 @@ from singletons.logger_singleton import LoggerSingleton
 from singletons.config_manager import ConfigManager
 from factories.post_factory import PostFactory
 from django.db.models import Q
+from django.core.cache import cache
 
 
 logger = LoggerSingleton().get_logger()
@@ -80,6 +81,12 @@ class PostListCreate(APIView):
         if serializer.is_valid():
             serializer.save()
             logger.info(f"Post created by user: {request.user.username}")
+
+            # Invalidate feed cache when new post is created
+            for p in range(1, 6):
+                cache.delete(f'feed_{request.user.id}_page{p}_size20')
+            logger.info(f"Feed cache invalidated after new post by {request.user.username}")
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         logger.error(f"Post creation failed: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -289,7 +296,16 @@ class FeedPagination(PageNumberPagination):
     max_page_size = 100
 
     def get_page_size(self, request):
-        # Pull page size from ConfigManager instead of hardcoding it
+        # Check if client sent a custom page_size first
+        if self.page_size_query_param in request.query_params:
+            try:
+                return min(
+                    int(request.query_params[self.page_size_query_param]),
+                    self.max_page_size
+                )
+            except ValueError:
+                pass
+        # Otherwise pull from ConfigManager instead of hardcoding it
         # so i only need to change it in one place if needed
         return ConfigManager().get_setting("DEFAULT_PAGE_SIZE")
 
@@ -299,6 +315,19 @@ class FeedView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Build cache key
+        page = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 20)
+        cache_key = f'feed_{request.user.id}_page{page}_size{page_size}'
+
+        # Check cache first
+        cached = cache.get(cache_key)
+        if cached:
+            logger.info(f"Feed cache HIT for user {request.user.username}")
+            return Response(cached)
+
+        logger.info(f"Feed cache MISS for user {request.user.username}")
+
         # -- Check if requester is admin --
         try:
             custom_user = CustomUser.objects.get(username=request.user.username)
@@ -325,7 +354,13 @@ class FeedView(APIView):
         logger.info(f"Feed accessed by user {request.user.username}")
 
         # To return count, next, previous, and results automatically
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+
+        # Store result in cache
+        cache.set(cache_key, response.data, timeout=300)
+        logger.info(f"Feed cached for user {request.user.username}")
+
+        return response
     
 
 class AdminPostListView(APIView):
