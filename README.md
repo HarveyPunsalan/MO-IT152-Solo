@@ -1,11 +1,11 @@
 # Connectly API: MO-IT152 Integrative Programming and Technologies
-## Milestone 2
+## Terminal Assessment
 
 ---
 
 ## About This Project
 
-This is my Connectly API project for MO-IT152. I built this incrementally across two milestones. MS1 covered the core stuff like CRUD, authentication, design patterns, and HTTPS. MS2 is where I added user interactions (likes and comments), Google OAuth login, and a news feed endpoint.
+This is my Connectly API project for MO-IT152. I built this across two milestones and a terminal assessment. MS1 was the foundation "CRUD, authentication, design patterns, and HTTPS". MS2 built on top of that with likes and comments, Google OAuth, and a news feed. The Terminal Assessment is HW8 and HW9, which added privacy controls, role-based access, and performance improvements to the feed.
 
 This is a solo submission. All code was written by me.
 
@@ -15,7 +15,7 @@ This is a solo submission. All code was written by me.
 
 Everything is on the `master` branch.
 
-> "All submissions, including the Milestone 2 deliverable, reflect the code currently on `master`."
+> "All submissions, including the Terminal Assessment deliverable, reflect the code currently on master."
 
 ---
 
@@ -42,7 +42,7 @@ MO-IT152-SOLO/
     │   ├── apps.py
     │   ├── google_views.py    ← added in MS2 (HW6)
     │   ├── models.py
-    │   ├── permissions.py
+    │   ├── permissions.py     ← modified in Terminal Assessment (HW8)
     │   ├── serializers.py
     │   ├── tests.py
     │   ├── urls.py
@@ -65,25 +65,25 @@ MO-IT152-SOLO/
 
 1. Clone the repository
 2. Go into the project folder:
-   ```bash
+   ```
    cd connectly_project
    ```
 3. Activate the virtual environment:
-   ```bash
+   ```
    source env/bin/activate
    ```
 4. Install dependencies:
-   ```bash
+   ```
    pip install -r requirements.txt
    ```
 5. Run migrations:
-   ```bash
+   ```
    python3 manage.py makemigrations
    python3 manage.py migrate
    ```
 6. Start the server:
-   ```bash
-   python3 manage.py runserver_plus --cert-file cert.pem
+   ```
+   python3 manage.py runserver_plus --cert-file cert.pem --key-file key.pem
    ```
 
 ---
@@ -111,13 +111,30 @@ MO-IT152-SOLO/
 | POST | `/posts/posts/<id>/comment/` | Comment on a post | HW5 |
 | GET | `/posts/posts/<id>/comments/` | Get all comments on a post | HW5 |
 | POST | `/auth/google/login/` | Log in or sign up via Google | HW6 |
-| GET | `/posts/feed/` | Get a paginated feed of posts (newest first) | HW7 |
+| GET | `/posts/feed/` | Paginated feed of posts, newest first | HW7 |
+
+### Terminal Assessment (one new endpoint + existing ones updated)
+
+| Method | Endpoint | Description | HW |
+|--------|----------|-------------|----|
+| GET | `/posts/admin/posts/` | All posts including private ones admin only | HW8 |
+
+The following endpoints already existed but were updated internally no new routes:
+
+| Method | Endpoint | What changed | HW |
+|--------|----------|-------------|----|
+| GET | `/posts/posts/<id>/` | Blocks non-owners from viewing private posts (403) | HW8 |
+| PUT | `/posts/posts/<id>/` | Only author or admin can edit | HW8 |
+| DELETE | `/posts/posts/<id>/` | Only author or admin can delete | HW8 |
+| GET | `/posts/posts/` | Filters results by privacy setting and role | HW8 |
+| GET | `/posts/feed/` | Privacy filter added; supports `?page_size=N`; results now cached | HW8 + HW9 |
 
 ---
 
 ## What I Built
 
 ### Milestone 1 (recap)
+
 - CRUD for Users, Posts, and Comments
 - Serializers with validation
 - Token-based authentication
@@ -129,48 +146,74 @@ MO-IT152-SOLO/
 
 ### Milestone 2
 
-#### HW5: Likes and Comments on Specific Posts
+**HW5: Likes and Comments on Specific Posts**
 
-Before this, the API had a general comments endpoint but nothing post-specific, and no likes at all. HW5 added those missing pieces.
+Before this the API had a general comments endpoint but nothing post-specific, and no likes at all. I added a `Like` model with a `unique_together` constraint so users can't like the same post twice, the database rejects duplicates and `LikeSerializer` catches it early with a readable error instead of a raw crash. I wrote three new views: `LikePostView`, `CommentPostView`, and `GetPostCommentsView`. All three use `TokenAuthentication` and log events through the Singleton Logger.
 
-I added a `Like` model in `models.py` with foreign keys to both `User` and `Post`. The important part is the `unique_together` constraint, without it, users could like the same post multiple times, so that constraint makes the database reject duplicates. On top of that, I added validation in `LikeSerializer` to catch it early and return a readable error instead of a raw database crash.
+**HW6: Integrating Third-Party Services**
 
-For the views, I wrote three new classes:
-- `LikePostView` for `POST /posts/posts/<id>/like/` — checks if the post exists, checks for duplicate likes, then saves
-- `CommentPostView` for `POST /posts/posts/<id>/comment/` — pulls the author from the token automatically so the client doesn't have to send it manually
-- `GetPostCommentsView` for `GET /posts/posts/<id>/comments/` — returns all comments for a post, or an empty list if there are none yet
+This gave users a second way to log in on top of the existing username/password flow. I installed `django-allauth` and created `posts/google_views.py` with `GoogleLoginView`. The client sends a Google `id_token`, the view verifies it with Google's servers, and then either finds the existing account or creates a new one and returns the app's own DRF token so the user can make authenticated requests normally. The original login still works exactly the same.
 
-All three are protected with `TokenAuthentication` and log events using the Singleton Logger. I also updated both diagrams (Data Relationship and CRUD Interaction Flow) to reflect these changes before writing any code.
+**HW7: Building a News Feed**
 
-#### HW6: Integrating Third-Party Services
+Added `GET /feed` returning posts sorted newest first with pagination. I created a `FeedPagination` class that extends `PageNumberPagination` and pulls the default page size from `ConfigManager` instead of hardcoding it. The response follows the standard DRF format with `count`, `next`, `previous`, and `results`.
 
-This was about giving users a second way to log in instead of only username and password, they can now use their Google account. The existing login still works exactly the same; Google OAuth is just an extra option.
+### Terminal Assessment
 
-I installed `django-allauth` and created a new file `posts/google_views.py` with the `GoogleLoginView`. When a client sends a POST to `/auth/google/login/` with a Google `id_token`, the view sends that token to Google's servers to verify it. If it's valid, Google tells us who the user is. From there, the view either finds the existing account or creates a new one, then returns the app's own DRF token so the user can make authenticated requests normally.
+**HW8: Privacy Settings and Role-Based Access Control (RBAC)**
 
-I updated `settings.py` with the allauth config, added the new URLs in `connectly_project/urls.py`, ran migrations for allauth's social account tables, and updated the Auth Flow diagram to show the new Google login path running parallel to the original one.
+HW8 was the biggest task in the terminal assessment. I added a `role` field to the `User` model (`admin` or `user`, defaults to `user`) and a `privacy` field to the `Post` model (`public` or `private`, defaults to `public`). Both used `choices=` so Django validates the values. Ran migrations after both changes.
 
-#### HW7: Building a News Feed
+The bigger part was `posts/permissions.py`, a new file I created to keep permission logic in one place. It has two classes. `IsAdminUser` checks `request.user.role == 'admin'` and returns 403 if the user isn't an admin. `IsOwnerOrAdmin` is the one used for post-level operations, it checks if the requesting user is either the post's author or an admin. Regular users can only edit or delete their own posts.
 
-This added a `GET /feed` endpoint that returns posts sorted newest first with pagination so instead of dumping every post at once, the client gets them in pages of 20.
+From there I updated the views. `PostDetailView` now uses `IsOwnerOrAdmin` for write operations. `PostListCreate.get()` and `FeedView` both use Q objects to filter: regular users see all public posts plus their own private ones, admins see everything. I also added `AdminPostListView` at `/posts/admin/posts/` which is locked behind `IsAdminUser` only admins can hit that endpoint. Added `privacy` to `PostSerializer` fields so clients can set and read it.
 
-I created a `FeedPagination` class that extends DRF's `PageNumberPagination` and a `FeedView` class in `views.py` that queries all posts ordered by `created_at` descending, runs them through the paginator, serializes, logs, and returns the response. The response follows the standard DRF paginated format with `count`, `next`, `previous`, and `results`. I registered it as `path('feed/', FeedView.as_view())` in `posts/urls.py`, making the full URL `/posts/feed/` since the posts app is mounted at `/posts/` in the main urls.py. I also updated the CRUD Interaction Flow diagram to include the feed path.
+Updated all the diagrams before coding: CRUD Interaction Flow v6 → v7 (added role check, ownership check, and privacy filter to Security Middleware and the endpoints), System Architecture v5 → v6 (added RBAC Permission Layer), Data Relationship diagram (added `role` to User and `privacy` to Post), and the Access Control Decision Flow diagram.
+
+**HW9: Performance Optimization**
+
+HW9 built on top of the feed from HW7 and HW8. Two things were added: better pagination and caching.
+
+For pagination, I noticed during testing that `FeedPagination` was ignoring the `?page_size=N` query param because `get_page_size()` always returned the `ConfigManager` value. I fixed it by checking the query param first and only falling back to `ConfigManager` if the client didn't send one. This way clients can control page size when they need to, but the default still comes from one central place.
+
+For caching, I added `LocMemCache` to `settings.py` and updated `FeedView` to check the cache before touching the database. The cache key is built per-user per-page so `adminuser` and `regularuser` never share a cache. On a miss the feed gets fetched from the database, stored with a 300-second timeout, and returned. On a hit the database is skipped entirely. To keep the cache from going stale I added cache invalidation in `PostListCreate.post()` when a new post is created it clears the first 5 page keys for that user so the next feed request always gets fresh data. Every cache event (HIT, MISS, invalidated) goes through `LoggerSingleton` so it shows up in the server logs.
+
+Updated CRUD Interaction Flow v7 → v8 (added Cache Layer with the check/hit/miss/invalidate flow) and System Architecture v6 → v7 (added Cache Layer box between Django Server and SQLite).
 
 ---
 
 ## MS2 Summary
 
 | Homework | What I added | Files touched |
-|----------|-------------|---------------|
+|----------|--------------|---------------|
 | HW5 | Like model, like/comment endpoints, get comments endpoint | `models.py`, `serializers.py`, `views.py`, `urls.py` |
-| HW6 | Google OAuth login | `google_auth_views.py` (new), `settings.py`, `connectly_project/urls.py` |
+| HW6 | Google OAuth login | `google_views.py` (new), `settings.py`, `connectly_project/urls.py` |
 | HW7 | News feed with sorting and pagination | `views.py`, `posts/urls.py` |
+
+## Terminal Assessment Summary
+
+| Homework | What I added | Files touched |
+|----------|--------------|---------------|
+| HW8 | RBAC roles, privacy settings, ownership checks, admin endpoint | `models.py`, `permissions.py` (new), `views.py`, `serializers.py`, `urls.py` |
+| HW9 | Caching for feed, pagination fix, cache invalidation on new post | `settings.py`, `views.py` |
+
+---
+
+## Design Patterns
+
+The Singleton and Factory patterns from MS1 are still actively used throughout the terminal assessment, not just left in the code unused.
+
+`LoggerSingleton` = every view logs through this, including the new cache HIT, MISS, and invalidation events added in HW9. Nothing uses `print()` directly.
+
+`ConfigManager` = the default feed page size comes from `ConfigManager().get_setting("DEFAULT_PAGE_SIZE")` inside `FeedPagination.get_page_size()`. If the page size ever needs to change it's one place to update, not scattered across the code.
+
+`PostFactory` = all post creation in `CreatePostView` still goes through `PostFactory`. It validates the post type and enforces metadata requirements before hitting the database.
 
 ---
 
 ## Intellectual Property Notice
 
-This project was completed as part of the coursework for MO-IT152 at Mapua-Malayan Digital College. All course materials, instructions, diagrams, and templates used in this project are the exclusive property of Mapua-Malayan Digital College and are protected under **Republic Act No. 8293**, also known as the *Intellectual Property Code of the Philippines*. Unauthorized reproduction, distribution, or uploading of any part of these materials is strictly prohibited under Sections 172, 177, and 216 of the IP Code.
+This project was completed as part of the coursework for MO-IT152 at Mapua-Malayan Digital College. All course materials, instructions, diagrams, and templates used in this project are the exclusive property of Mapua-Malayan Digital College and are protected under Republic Act No. 8293, also known as the Intellectual Property Code of the Philippines. Unauthorized reproduction, distribution, or uploading of any part of these materials is strictly prohibited under Sections 172, 177, and 216 of the IP Code.
 
 This repository contains only my own code and work. No proprietary course materials, templates, or assessment content from MMDC have been uploaded or reproduced here.
 
@@ -180,22 +223,22 @@ This repository contains only my own code and work. No proprietary course materi
 
 In the interest of transparency and in compliance with course documentation requirements, I am disclosing my use of AI and other tools during this project.
 
-**Tools used:** Claude, Grammarly
-
----
+Tools used: Claude, Grammarly, QuillBot
 
 **Claude**
 
-- I want to be upfront about how I used Claude in this project. I mostly used it as a reference the same way you'd Google something or read documentation when you're stuck or want to double-check your understanding before moving forward.
+I want to be upfront about how I used Claude in this project. I mostly used it as a reference the same way you'd Google something or read documentation when you're stuck or want to double check your understanding before moving forward.
 
-The main things I asked Claude about were the system diagrams. Some of them were dense and I wanted to make sure I was reading them correctly before I started implementing anything. I'd describe what I was looking at and ask Claude to help me make sense of it. Same thing with the diagram updates in MS2. I used it as a sounding board to check if the changes I was planning actually made sense architecturally.
+The main things I asked Claude about were the system diagrams. Some of them were dense and I wanted to make sure I was reading them correctly before I started implementing anything. I'd describe what I was looking at and ask Claude to help me make sense of it. Same thing with the diagram updates across MS2 and the terminal assessment. I used it as a sounding board to check if the changes I was planning made sense before drawing them in Lucidchart.
 
-I also asked for some guidance on Postman testing, mostly for HW6. Google OAuth testing is genuinely confusing the first time because you're dealing with tokens from an external provider, and I wasn't sure I was testing it the right way. Claude helped me figure out what requests to send and what responses to expect.
+I also asked for guidance on Postman testing. HW6 was confusing the first time because of how Google OAuth tokens work. For HW8 I needed help figuring out how to properly test with three different tokens (regularuser, a different regular user, and adminuser) to cover all the RBAC cases. For HW9 I needed to understand how to verify cache hits and misses through the server terminal logs since you can't see that directly in Postman.
 
-All the actual implementation the models, views, serializers, URLs, the Like constraint, the OAuth view, the feed pagination. I wrote all of that myself in VS Code. Claude never touched the code. I used it to understand things, not to build things.
-
----
+All the actual implementation the models, views, serializers, URLs, the Like constraint, the OAuth view, the feed pagination, the RBAC permission classes, the privacy filter Q objects, the caching logic, and the cache invalidation, I wrote all of that myself in VS Code. Claude never touched the code. I used it to understand things, not to build things.
 
 **QuillBot**
 
-I used QuillBot  solely for grammar and spelling checks on my written worksheet responses. English is not my strongest area and I wanted to make sure my written answers were readable and clear. QuillBot was only used to correct grammar all the content, ideas, and answers in the worksheets are entirely my own.
+I used QuillBot solely for grammar and spelling checks on my written worksheet responses. English is not my strongest area and I wanted to make sure my written answers were readable and clear. QuillBot was only used to correct grammar, all the content, ideas, and answers in the worksheets are entirely my own.
+
+**Grammarly**
+
+Same as QuillBot used only for grammar checking on written responses, not for generating any content.
