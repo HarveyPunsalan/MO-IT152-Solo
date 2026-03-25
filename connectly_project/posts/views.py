@@ -59,7 +59,7 @@ class PostListCreate(APIView):
     
     def get(self, request):
         # -- Check if requester is admin --
-        try:
+        try:    
             custom_user = CustomUser.objects.get(username=request.user.username)
             is_admin = custom_user.role == 'admin'
         except CustomUser.DoesNotExist:
@@ -321,7 +321,7 @@ class FeedView(APIView):
         cache_key = f'feed_{request.user.id}_page{page}_size{page_size}'
 
         # Check cache first
-        cached = cache.get(cache_key)
+        cached = cache.get(cache_key)   
         if cached:
             logger.info(f"Feed cache HIT for user {request.user.username}")
             return Response(cached)
